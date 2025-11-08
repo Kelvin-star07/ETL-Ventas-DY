@@ -1,0 +1,127 @@
+USE [DWVentas]
+GO
+/****** Object:  Schema [Dimensiones]    Script Date: 07/11/2025 21:46:58 ******/
+CREATE SCHEMA [Dimensiones]
+GO
+/****** Object:  Schema [Hechos]    Script Date: 07/11/2025 21:46:58 ******/
+CREATE SCHEMA [Hechos]
+GO
+/****** Object:  Table [Dimensiones].[DimCliente]    Script Date: 07/11/2025 21:46:58 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [Dimensiones].[DimCliente](
+	[ClienteKey] [int] IDENTITY(1,1) NOT NULL,
+	[CodigoCliente] [varchar](50) NOT NULL,
+	[Nombre] [varchar](60) NOT NULL,
+	[TipoCliente] [varchar](50) NOT NULL,
+	[Genero] [varchar](100) NOT NULL,
+	[Edad] [int] NOT NULL,
+	[Pais] [varchar](100) NOT NULL,
+	[Region] [varchar](100) NOT NULL,
+	[Ciudad] [varchar](100) NOT NULL,
+	[Segmento] [varchar](100) NOT NULL,
+	[FechaRegistro] [varchar](100) NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ClienteKey] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [Dimensiones].[DimProducto]    Script Date: 07/11/2025 21:46:58 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [Dimensiones].[DimProducto](
+	[ProductoKey] [int] IDENTITY(1,1) NOT NULL,
+	[CódigoProducto] [varchar](30) NOT NULL,
+	[NombreProducto] [varchar](40) NOT NULL,
+	[Categoría] [varchar](100) NOT NULL,
+	[SubCategoría] [varchar](100) NOT NULL,
+	[Marca] [varchar](100) NOT NULL,
+	[PrecioUnitario] [decimal](10, 2) NOT NULL,
+	[precioBase] [decimal](10, 2) NOT NULL,
+	[proveedor] [varchar](100) NOT NULL,
+	[Estado] [varchar](30) NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ProductoKey] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [Dimensiones].[DimRegion]    Script Date: 07/11/2025 21:46:58 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [Dimensiones].[DimRegion](
+	[RegionKey] [int] IDENTITY(1,1) NOT NULL,
+	[Pais] [varchar](100) NOT NULL,
+	[Region] [varchar](100) NOT NULL,
+	[Ciudad] [varchar](100) NOT NULL,
+	[Zona] [varchar](50) NOT NULL,
+	[CodigoPostal] [varchar](40) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[RegionKey] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [Dimensiones].[DimTiempo]    Script Date: 07/11/2025 21:46:58 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [Dimensiones].[DimTiempo](
+	[Tiempokey] [int] IDENTITY(1,1) NOT NULL,
+	[FechaCompleta] [datetime] NOT NULL,
+	[Anio] [int] NOT NULL,
+	[Mes] [int] NOT NULL,
+	[Dia] [int] NOT NULL,
+	[NombreMes] [varchar](30) NOT NULL,
+	[trimestre] [int] NOT NULL,
+	[semana] [int] NOT NULL,
+	[DiaSemana] [varchar](40) NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Tiempokey] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [Hechos].[FactVentas]    Script Date: 07/11/2025 21:46:58 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [Hechos].[FactVentas](
+	[VentaKey] [int] IDENTITY(1,1) NOT NULL,
+	[TiempoId] [int] NOT NULL,
+	[ProductoId] [int] NOT NULL,
+	[ClienteId] [int] NOT NULL,
+	[RegionId] [int] NOT NULL,
+	[Cantidad] [int] NOT NULL,
+	[PrecioUnitario] [decimal](10, 2) NOT NULL,
+	[Descuento] [decimal](5, 2) NOT NULL,
+	[TotalVenta] [numeric](12, 2) NOT NULL,
+	[costo] [decimal](10, 2) NOT NULL,
+	[Margen] [numeric](10, 2) NOT NULL,
+	[NumeroTrasaccion] [int] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[VentaKey] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+ALTER TABLE [Hechos].[FactVentas]  WITH CHECK ADD FOREIGN KEY([ClienteId])
+REFERENCES [Dimensiones].[DimCliente] ([ClienteKey])
+GO
+ALTER TABLE [Hechos].[FactVentas]  WITH CHECK ADD FOREIGN KEY([ProductoId])
+REFERENCES [Dimensiones].[DimProducto] ([ProductoKey])
+GO
+ALTER TABLE [Hechos].[FactVentas]  WITH CHECK ADD FOREIGN KEY([RegionId])
+REFERENCES [Dimensiones].[DimRegion] ([RegionKey])
+GO
+ALTER TABLE [Hechos].[FactVentas]  WITH CHECK ADD FOREIGN KEY([TiempoId])
+REFERENCES [Dimensiones].[DimTiempo] ([Tiempokey])

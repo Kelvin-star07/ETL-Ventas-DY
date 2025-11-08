@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CsvHelper" Version="33.1.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VentasETL.Aplication\VentasETL.Aplication.csproj" />
+    <ProjectReference Include="..\VentasETL.Domain\VentasETL.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
