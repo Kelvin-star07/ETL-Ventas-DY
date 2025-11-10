@@ -3,7 +3,7 @@
 using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using VentasETL.Aplication.Interfaces.DB;
+using VentasETL.Aplication.Interfaces.Source.DB;
 using VentasETL.Domain.Interfaces.ReadDb;
 
 namespace VentasETL.Aplication.Services.ReadDataDb

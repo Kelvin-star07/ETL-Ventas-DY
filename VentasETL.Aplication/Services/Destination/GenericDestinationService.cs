@@ -8,7 +8,7 @@ using VentasETL.Domain.Interfaces.Destination;
 
 namespace VentasETL.Aplication.Services.Destination
 {
-    internal class GenericDestinationService<T> : IGenericDetinationService<T> where T : class
+    public class GenericDestinationService<T> : IGenericDetinationService<T> where T : class
     {
         private readonly  IGenericDestinationRepository<T> repo;
 

@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using VentasETL.Aplication.Interfaces.Api;
+using VentasETL.Aplication.Interfaces.Source.Api;
 using VentasETL.Domain.Interfaces.Api;
 
 namespace VentasETL.Aplication.Services.Api

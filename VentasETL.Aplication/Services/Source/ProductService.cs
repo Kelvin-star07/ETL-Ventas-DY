@@ -1,8 +1,8 @@
 ﻿
 using Microsoft.Extensions.Configuration;
-using VentasETL.Aplication.Dtos.Source.Product;
+using VentasETL.Aplication.Dtos.Source.CSV.Product;
+using VentasETL.Aplication.Interfaces.Source.CSV;
 using VentasETL.Domain.Entities.Source;
-using VentasETL.Domain.Interfaces.Source;
 using VentasETL.Domain.Interfaces.Source.CSV;
 
 namespace VentasETL.Aplication.Services.Source

@@ -1,4 +1,5 @@
 ﻿using VentasETL.Aplication.Dtos.Destination.Facts;
+using VentasETL.Aplication.Interfaces.Destination;
 
 namespace VentasETL.Aplication.Interfaces.Destination.Facts
 { 

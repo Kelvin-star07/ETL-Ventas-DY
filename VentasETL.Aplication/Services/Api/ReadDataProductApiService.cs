@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using VentasETL.Aplication.Dtos.Api;
-using VentasETL.Aplication.Interfaces.Api;
+using VentasETL.Aplication.Dtos.Source.Api;
+using VentasETL.Aplication.Interfaces.Source.Api;
 using VentasETL.Domain.Entities.Api;
 using VentasETL.Domain.Interfaces.Api;
 

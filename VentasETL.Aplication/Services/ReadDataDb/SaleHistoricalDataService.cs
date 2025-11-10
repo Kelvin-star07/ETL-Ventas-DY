@@ -1,7 +1,5 @@
-﻿
-
-using VentasETL.Aplication.Dtos.DB;
-using VentasETL.Aplication.Interfaces.DB;
+﻿using VentasETL.Aplication.Dtos.Source.DB;
+using VentasETL.Aplication.Interfaces.Source.DB;
 using VentasETL.Domain.Entities.DBRead;
 using VentasETL.Domain.Interfaces.ReadDb;
 

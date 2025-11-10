@@ -3,7 +3,7 @@
 using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using VentasETL.Aplication.Interfaces.Source;
+using VentasETL.Aplication.Interfaces.Source.CSV;
 using VentasETL.Domain.Interfaces.Source;
 
 namespace VentasETL.Aplication.Services.Source

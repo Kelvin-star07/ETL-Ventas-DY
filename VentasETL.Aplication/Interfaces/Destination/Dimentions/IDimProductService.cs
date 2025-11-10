@@ -1,5 +1,5 @@
 ﻿using VentasETL.Aplication.Dtos.Destination.Dimensiones.DimProduct;
-
+using VentasETL.Aplication.Interfaces.Destination;
 
 namespace VentasETL.Aplication.Interfaces.Destination.Dimentions
 {

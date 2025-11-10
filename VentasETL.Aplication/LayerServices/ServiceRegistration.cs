@@ -1,18 +1,18 @@
 ﻿
 
 using Microsoft.Extensions.DependencyInjection;
-using VentasETL.Aplication.Dtos.Api;
+using VentasETL.Aplication.Dtos.Source.Api;
 using VentasETL.Aplication.Interfaces;
-using VentasETL.Aplication.Interfaces.Api;
-using VentasETL.Aplication.Interfaces.DB;
 using VentasETL.Aplication.Interfaces.Destination;
+using VentasETL.Aplication.Interfaces.Source.Api;
+using VentasETL.Aplication.Interfaces.Source.CSV;
+using VentasETL.Aplication.Interfaces.Source.DB;
 using VentasETL.Aplication.Services;
 using VentasETL.Aplication.Services.Api;
 using VentasETL.Aplication.Services.Destination;
 using VentasETL.Aplication.Services.ReadDataDb;
 using VentasETL.Aplication.Services.Source;
 using VentasETL.Domain.Entities.Source;
-using VentasETL.Domain.Interfaces.Source;
 
 namespace VentasETL.Aplication.LayerServices
 {
@@ -37,7 +37,7 @@ namespace VentasETL.Aplication.LayerServices
             service.AddScoped<IReadDataProductService<DataProductUpdatedDto>, ReadDataProductApiService>();
             service.AddScoped<ISalesHistoricalDataService, SaleHistoricalDataService>();
             service.AddScoped<ISalesHistoricalDataService, SaleHistoricalDataService>();
-            service.AddScoped<IWorkeServiceFinal, WorkeServiceFinal>();
+            service.AddScoped<IWorkeServiceFinal, WorkeServiceCentral>();
             service.AddScoped<IReadDataCustumerApiService<DataCustumerUpdatedDto>, ReadDataCustumerApiService>();
             service.AddScoped<IReadDataProductService<DataProductUpdatedDto>, ReadDataProductApiService>();
             service.AddScoped(typeof(IGenericDetinationService<>), typeof(GenericDestinationService<>));
