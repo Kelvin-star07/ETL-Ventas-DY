@@ -17,7 +17,9 @@ namespace VentasETL.Aplication.Services.Destination
            this.repo = repo;    
         }
 
-        public async Task AddFactVentaAsync(T entity)
+       
+
+        public async Task AddAsync(T entity)
         {
             try
             {
@@ -30,7 +32,7 @@ namespace VentasETL.Aplication.Services.Destination
                    
                 }
 
-                await repo.AddFactVentaAsync(entity);  
+                await repo.AddReturnAsync(entity);  
 
             }
             catch (Exception ex)
@@ -58,7 +60,7 @@ namespace VentasETL.Aplication.Services.Destination
                 }
 
 
-                await repo.AddRangeAsync(entities); 
+                await repo.AddRangeReturnAsync(entities); 
 
 
             } catch (Exception ex) 

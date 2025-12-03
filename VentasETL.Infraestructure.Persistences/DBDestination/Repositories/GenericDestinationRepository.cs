@@ -8,111 +8,71 @@ namespace VentasETL.Infraestructure.Persistences.Destination.Repositories
     public class GenericDestinationRepository<Tentity> : IGenericDestinationRepository<Tentity> where Tentity : class
     {
 
-
-        private readonly DWHContext context;
-        private readonly ILogger<Tentity> logger;
-
+        private readonly DWHContext _context;
+        private readonly ILogger<Tentity> _logger;
 
         public GenericDestinationRepository(DWHContext context, ILogger<Tentity> logger)
         {
-        
-           this.context = context;
-           this.logger = logger;
-        
+            _context = context;
+            _logger = logger;
         }
 
-
-
-
-        public async Task AddFactVentaAsync(Tentity entity)
-        {
-
-            try
-            {
-
-                if (entity == null)
-                {
-
-                    logger.LogWarning("La entidad a guardar esta vacia");
-
-                }
-
-                context.ChangeTracker.Clear();
-                await context.Set<Tentity>().AddAsync(entity);
-                await context.SaveChangesAsync();
-                logger.LogInformation("La entidad a guardar se proceso correctamente");
-            }
-            catch (Exception ex)
-            {
-
-
-                logger.LogError("Ocurrio un error al guardar la data de una entidad");
-                logger.LogError(ex.ToString()); 
-                
-            }
-
-
-
-        }
-
-
-
-        public async Task AddRangeAsync(IEnumerable<Tentity> entity)
+        public async Task<Tentity> AddReturnAsync(Tentity entity)
         {
             try
             {
                 if (entity == null)
-                {
+                    throw new ArgumentNullException(nameof(entity));
 
-                    logger.LogWarning("Las entidades a guardar estan vacia");
+                _context.ChangeTracker.Clear();
+                await _context.Set<Tentity>().AddAsync(entity);
+                await _context.SaveChangesAsync();
 
-                }
-
-                context.ChangeTracker.Clear();
-                await context.Set<Tentity>().AddRangeAsync(entity);
-                await context.SaveChangesAsync();
-                logger.LogInformation("La entidad a guardar se proceso correctamente");
+                return entity;
             }
             catch (Exception ex)
             {
-
-
-                logger.LogError("Ocurrio un error al guardar la data de una entidad");
-                logger.LogError(ex.ToString());
-
+                _logger.LogError(ex, "Error al insertar entidad en destino");
+                throw;
             }
-
         }
 
+        public async Task<List<Tentity>> AddRangeReturnAsync(IEnumerable<Tentity> entities)
+        {
+            try
+            {
+                if (entities == null || !entities.Any())
+                    throw new ArgumentException("La lista está vacía");
+
+                _context.ChangeTracker.Clear();
+                await _context.Set<Tentity>().AddRangeAsync(entities);
+                await _context.SaveChangesAsync();
+
+                return entities.ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al insertar range en destino");
+                throw;
+            }
+        }
 
 
 
         public async Task<List<Tentity>> GetAllAsync()
         {
-
-            return await context.Set<Tentity>().ToListAsync();
-            
-
+            return await _context.Set<Tentity>().ToListAsync();
         }
 
 
 
         public async Task UpdateRangeAsync(IEnumerable<Tentity> entities)
         {
-
-
             if (entities == null || !entities.Any())
-            {
+                throw new ArgumentException("Lista vacía");
 
-                throw new ArgumentException("La entidades a actualizar estan vacia");
-
-            }
-
-
-            context.Set<Tentity>().UpdateRange(entities);
-            await context.SaveChangesAsync();
-
-
+            _context.Set<Tentity>().UpdateRange(entities);
+            await _context.SaveChangesAsync();
         }
 
 

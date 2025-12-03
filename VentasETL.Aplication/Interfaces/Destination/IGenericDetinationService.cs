@@ -9,9 +9,9 @@ namespace VentasETL.Aplication.Interfaces.Destination
     public interface IGenericDetinationService<Tentity>
     {
 
-        Task AddFactVentaAsync(Tentity entity);
+        Task AddAsync(Tentity entity);
         Task AddRangeAsync(IEnumerable<Tentity> entity);
-     
+      
 
     }
 }

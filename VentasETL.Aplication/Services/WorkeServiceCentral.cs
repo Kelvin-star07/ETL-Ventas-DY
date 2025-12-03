@@ -1,5 +1,4 @@
-﻿
-using System.Globalization;
+﻿using System.Globalization;
 using VentasETL.Aplication.Dtos.Source.Api;
 using VentasETL.Aplication.Dtos.Source.CSV.Custumer;
 using VentasETL.Aplication.Dtos.Source.CSV.Order;
@@ -14,9 +13,11 @@ using VentasETL.Aplication.Interfaces.Source.DB;
 using VentasETL.Domain.Entities.Destination.Dimensions;
 using VentasETL.Domain.Entities.Destination.Facts;
 
+
+
 namespace VentasETL.Aplication.Services
 {
-   
+
     public class WorkeServiceCentral : IWorkeServiceFinal
     {
         private readonly ICustumerService _custumerCsvService;
@@ -67,7 +68,7 @@ namespace VentasETL.Aplication.Services
 
         public async Task RunETLAsync()
         {
-          
+
             var clientesCsv = (await _custumerCsvService.GetAllAsync()).ToList();
             var clientesApi = (await _custumerApiService.GetAllAsync()).ToList();
             var orders = (await _orderCsvService.GetAllAsync()).ToList();
@@ -79,11 +80,11 @@ namespace VentasETL.Aplication.Services
 
             var dimClientes = MapClientes(clientesCsv, clientesApi);
             var dimProductos = MapProductos(productosCsv, productosApi, descriptions);
-            var dimTiempos = MapDimTiempo(fechas,orders);
+            var dimTiempos = MapDimTiempo(fechas, orders);
             var dimRegiones = MapDimRegion(dimClientes, clientesApi);
             var factVentas = MapFactVentas(orders, orderDetails, dimClientes, dimProductos, dimTiempos, dimRegiones);
 
-           
+
             await _dimClienteRepo.AddRangeAsync(dimClientes);
             await _dimProductRepo.AddRangeAsync(dimProductos);
             await _dimTiempoRepo.AddRangeAsync(dimTiempos);
@@ -95,173 +96,207 @@ namespace VentasETL.Aplication.Services
 
         private List<DimCliente> MapClientes(List<CustumerDto> csv, List<DataCustumerUpdatedDto> api)
         {
-            var clientes = new List<DimCliente>();
+            var dict = new Dictionary<string, DimCliente>(StringComparer.OrdinalIgnoreCase);
 
-            // CSV
-            clientes.AddRange(csv.Select(c => new DimCliente
+            foreach (var c in csv)
             {
-                CodigoCliente = Guid.NewGuid().ToString(),
-                Nombre = $"{c.FirstName} {c.LastName}",
-                TipoCliente = "N/A",
-                Genero = "N/A",
-                Edad = 0,
-                Pais = c.Country ?? "N/A",
-                Ciudad = c.City ?? "N/A",
-                Region = "N/A",
-                Segmento = "N/A",
-                FechaRegistro = DateTime.Now
-            }));
+                var key = c.CustomerID.ToString();
+                if (!dict.ContainsKey(key))
+                {
+                    dict[key] = new DimCliente
+                    {
+                        CodigoCliente = key,
+                        Nombre = $"{c.FirstName} {c.LastName}".Trim(),
+                        Pais = c.Country ?? "N/A",
+                        Ciudad = c.City ?? "N/A",
+                        TipoCliente = "CSV",
+                        FechaRegistro = DateTime.Now
+                    };
+                }
+            }
 
-            // API
-            clientes.AddRange(api.Select(c => new DimCliente
+            foreach (var a in api)
             {
-                CodigoCliente = Guid.NewGuid().ToString(),
-                Nombre = $"{c.FirstName} {c.LastName}",
-                TipoCliente = "API",
-                Genero = "N/A",
-                Edad = 0,
-                Pais = c.CountryRegionName ?? "N/A",
-                Ciudad = c.City ?? "N/A",
-                Region = c.StateProvinceName ?? "N/A",
-                Segmento = c.AddressType ?? "N/A",
-                FechaRegistro = DateTime.Now
-            }));
+                string apiKey = !string.IsNullOrWhiteSpace(a.EmailAddress) ? a.EmailAddress.ToLowerInvariant()
+                              : !string.IsNullOrWhiteSpace(a.PhoneNumber) ? $"phone:{a.PhoneNumber}"
+                              : $"{a.FirstName}_{a.LastName}_{a.City}".ToLowerInvariant();
 
-            return clientes
-                .GroupBy(c => c.Nombre)
-                .Select(g => g.First())
-                .ToList();
+
+                var matchCsv = csv.FirstOrDefault(c =>
+                    (!string.IsNullOrWhiteSpace(c.Email) && c.Email.Equals(a.EmailAddress, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrWhiteSpace(c.Phone) && c.Phone == a.PhoneNumber));
+                if (matchCsv != null)
+                {
+                    var key = matchCsv.CustomerID.ToString();
+                    var existing = dict[key];
+                    existing.Region = string.IsNullOrWhiteSpace(existing.Region) ? a.StateProvinceName : existing.Region;
+                    existing.Segmento = string.IsNullOrWhiteSpace(existing.Segmento) ? a.AddressType : existing.Segmento;
+                    existing.Pais = string.IsNullOrWhiteSpace(existing.Pais) ? a.CountryRegionName : existing.Pais;
+                }
+                else if (!dict.ContainsKey(apiKey))
+                {
+                    dict[apiKey] = new DimCliente
+                    {
+                        CodigoCliente = apiKey,
+                        Nombre = $"{a.FirstName} {a.LastName}".Trim(),
+                        Pais = a.CountryRegionName ?? "N/A",
+                        Region = a.StateProvinceName ?? "N/A",
+                        Ciudad = a.City ?? "N/A",
+                        TipoCliente = "API",
+                        Segmento = a.AddressType ?? "N/A",
+                        FechaRegistro = DateTime.Now
+                    };
+                }
+            }
+
+            return dict.Values.ToList();
         }
+
+
 
 
 
         private List<DimProduct> MapProductos(List<ProductDto> csv, List<DataProductUpdatedDto> api, List<ProductDescriptionDto> descriptions)
         {
-            var productos = new List<DimProduct>();
+            var dict = new Dictionary<string, DimProduct>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var apiProd in api)
+
+            foreach (var a in api)
             {
-                var csvProd = csv.FirstOrDefault(p => p.ProductName.Equals(apiProd.Name, StringComparison.OrdinalIgnoreCase));
-                var desc = descriptions.FirstOrDefault()?.Description ?? "N/A";
-
-                productos.Add(new DimProduct
+                var key = a.ProductId.ToString();
+                var desc = descriptions.FirstOrDefault(d => false)?.Description
+                           ?? descriptions.FirstOrDefault()?.Description ?? "N/A";
+                dict[key] = new DimProduct
                 {
-                    CodigoProducto = apiProd.ProductNumber ?? Guid.NewGuid().ToString(),
-                    Nombre = apiProd.Name,
+                    CodigoProducto = key,
+                    Nombre = a.Name ?? "N/A",
+                    Categoria = "N/A",
                     Descripcion = desc,
-                    Categoria = csvProd?.Category ?? "N/A",
-                    SubCategoria = "N/A",
-                    Marca = "N/A",
-                    PrecioUnitario = apiProd.ListPrice,
-                    PrecioBase = apiProd.StandardCost,
-                    Proveedor = "N/A",
+                    PrecioUnitario = a.ListPrice,
+                    PrecioBase = a.StandardCost,
                     Estado = "Activo"
-                });
+                };
             }
 
-           
-            var faltantes = csv
-                .Where(p => !productos.Any(x => x.Nombre == p.ProductName))
-                .Select(p => new DimProduct
+
+            foreach (var p in csv)
+            {
+                var key = p.ProductID > 0 ? p.ProductID.ToString() : p.ProductName;
+                if (dict.TryGetValue(key, out var existing))
                 {
-                    CodigoProducto = Guid.NewGuid().ToString(),
-                    Nombre = p.ProductName,
-                    Descripcion = descriptions.FirstOrDefault()?.Description ?? "N/A",
-                    Categoria = p.Category,
-                    PrecioUnitario = p.Price,
-                    PrecioBase = p.Price,
-                    Estado = "Activo",
-                    Proveedor = "N/A",
-                    Marca = "N/A"
-                });
+                    existing.Categoria = string.IsNullOrWhiteSpace(existing.Categoria) || existing.Categoria == "N/A" ? p.Category : existing.Categoria;
+                    existing.PrecioUnitario = existing.PrecioUnitario == 0 ? p.Price : existing.PrecioUnitario;
+                    existing.PrecioBase = existing.PrecioBase == 0 ? p.Price : existing.PrecioBase;
+                }
+                else
+                {
+                    dict[key] = new DimProduct
+                    {
+                        CodigoProducto = key,
+                        Nombre = p.ProductName,
+                        Categoria = p.Category,
+                        Descripcion = descriptions.FirstOrDefault()?.Description ?? "N/A",
+                        PrecioUnitario = p.Price,
+                        PrecioBase = p.Price,
+                        Estado = "Activo"
+                    };
+                }
+            }
 
-            productos.AddRange(faltantes);
-            return productos.GroupBy(p => p.CodigoProducto).Select(g => g.First()).ToList();
+            return dict.Values.ToList();
         }
 
-
-
-        private List<DimTiempo> MapDimTiempo(List<HistoricalDataDto> fechas, List<OrderDto> orders)
+        private List<DimTiempo> MapDimTiempo(List<HistoricalDataDto> historial, List<OrderDto> orders)
         {
-            
-            var allDates = fechas.Select(f => f.TransactionDate.Date)
-                                 .Union(orders.Select(o => o.OrderDate.Date))
-                                 .Distinct()
-                                 .OrderBy(d => d)
-                                 .ToList();
-
-            var tiempos = allDates.Select((date, index) => new DimTiempo
+            var dates = historial.Select(h => h.TransactionDate.Date)
+                       .Union(orders.Select(o => o.OrderDate.Date))
+                       .Distinct()
+                       .OrderBy(d => d);
+            return dates.Select(d => new DimTiempo
             {
-                TiempoKey = index + 1, 
-                FechaCompleta = date,
-                Anio = date.Year,
-                Mes = date.Month,
-                Dia = date.Day,
-                Trimestre = (date.Month - 1) / 3 + 1,
-                NombreMes = date.ToString("MMMM", CultureInfo.InvariantCulture),
-                Semana = CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstDay, DayOfWeek.Monday),
-                DiaSemana = date.DayOfWeek.ToString()
+                FechaCompleta = d,
+                Anio = d.Year,
+                Mes = d.Month,
+                Dia = d.Day,
+                NombreMes = d.ToString("MMMM", CultureInfo.InvariantCulture),
+                Semana = CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(d, CalendarWeekRule.FirstDay, DayOfWeek.Monday),
+                DiaSemana = d.DayOfWeek.ToString(),
+                Trimestre = (d.Month - 1) / 3 + 1
             }).ToList();
-
-            return tiempos;
         }
 
 
 
-        private List<DimRegion> MapDimRegion(List<DimCliente> clientes, List<DataCustumerUpdatedDto> apiClientes)
+
+        private List<DimRegion> MapDimRegion(List<DimCliente> clientesStaging, List<DataCustumerUpdatedDto> api)
         {
-            var regiones = clientes.Select(c => new DimRegion
+            var dict = new Dictionary<string, DimRegion>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in clientesStaging)
             {
-                Pais = c.Pais,
-                Region = c.Region,
-                Ciudad = c.Ciudad,
-                CodigoPostal = apiClientes.FirstOrDefault(a => a.City == c.Ciudad)?.PostalCode ?? "N/A",
-                Zona = apiClientes.FirstOrDefault(a => a.City == c.Ciudad)?.StateProvinceName ?? "N/A"
-            });
-
-            return regiones.GroupBy(r => new { r.Pais, r.Region, r.Ciudad }).Select(g => g.First()).ToList();
+                var key = $"{(c.Pais ?? "N/A").ToLowerInvariant()}|{(c.Region ?? "N/A").ToLowerInvariant()}|{(c.Ciudad ?? "N/A").ToLowerInvariant()}";
+                if (!dict.ContainsKey(key))
+                {
+                    var postal = api.FirstOrDefault(a => (a.City ?? "").Equals(c.Ciudad, StringComparison.OrdinalIgnoreCase))?.PostalCode ?? "N/A";
+                    var zona = api.FirstOrDefault(a => (a.City ?? "").Equals(c.Ciudad, StringComparison.OrdinalIgnoreCase))?.StateProvinceName ?? "N/A";
+                    dict[key] = new DimRegion { Pais = c.Pais!, Region = c.Region!, Ciudad = c.Ciudad!, CodigoPostal = postal, Zona = zona };
+                }
+            }
+            return dict.Values.ToList();
         }
 
 
-        private List<FactVentas> MapFactVentas(
-    List<OrderDto> orders,
-    List<OrderDetailDto> details,
-    List<DimCliente> clientes,
-    List<DimProduct> productos,
-    List<DimTiempo> tiempos,
-    List<DimRegion> regiones)
-        {
-            var fact = new List<FactVentas>();
 
+
+
+        private List<FactVentas> MapFactVentas(List<OrderDto> orders, List<OrderDetailDto> details, List<DimCliente> persistedClientes, List<DimProduct> persistedProductos, List<DimTiempo> persistedTiempos, List<DimRegion> persistedRegiones)
+        {
+            var clienteByBusiness = persistedClientes.ToDictionary(c => c.CodigoCliente, c => c);
+            var productoByBusiness = persistedProductos.ToDictionary(p => p.CodigoProducto, p => p);
+            var tiempoByDate = persistedTiempos.ToDictionary(t => t.FechaCompleta.Date, t => t);
+            var regionByComposite = persistedRegiones.ToDictionary(r => $"{r.Pais}|{r.Region}|{r.Ciudad}".ToLowerInvariant(), r => r);
+
+            var fact = new List<FactVentas>();
             foreach (var order in orders)
             {
-                var cliente = clientes.FirstOrDefault(c => c.CodigoCliente == order.CustomerID.ToString());
-                var tiempo = tiempos.FirstOrDefault(t => t.FechaCompleta.Date == order.OrderDate.Date);
-
-                var det = details.Where(d => d.OrderID == order.OrderID);
-                foreach (var d in det)
+                var t = tiempoByDate.GetValueOrDefault(order.OrderDate.Date);
+                string clienteKey = order.CustomerID.ToString();
+                clienteByBusiness.TryGetValue(clienteKey, out var cliente);
+                foreach (var d in details.Where(x => x.OrderID == order.OrderID))
                 {
-                    var producto = productos.FirstOrDefault(p => p.CodigoProducto == d.ProductID.ToString());
-                    var region = regiones.FirstOrDefault(r => r.Pais == (cliente?.Pais ?? "N/A"));
+                    var productKey = d.ProductID.ToString();
+                    productoByBusiness.TryGetValue(productKey, out var prod);
+
+
+                    DimRegion region = null;
+                    if (cliente != null)
+                    {
+                        var comp = $"{cliente.Pais}|{cliente.Region}|{cliente.Ciudad}".ToLowerInvariant();
+                        regionByComposite.TryGetValue(comp, out region);
+                    }
+
+                    var costo = prod?.PrecioBase ?? 0m;
+                    var cantidad = Math.Max(0, d.Quantity);
+                    var precioUnit = cantidad > 0 ? d.TotalPrice / cantidad : d.TotalPrice;
 
                     fact.Add(new FactVentas
                     {
+                        TiempoId = t?.TiempoKey ?? 0,
+                        ProductoId = prod?.ProductKey ?? 0,
                         ClienteId = cliente?.ClienteKey ?? 0,
-                        ProductoId = producto?.ProductKey ?? 0,
                         RegionId = region?.RegionKey ?? 0,
-                        TiempoId = tiempo?.TiempoKey ?? 0,
-                        Cantidad = d.Quantity,
-                        PrecioUnitario = d.TotalPrice / Math.Max(d.Quantity, 1),
+                        Cantidad = cantidad,
+                        PrecioUnitario = precioUnit,
+                        Descuento = 0m,
                         TotalVenta = d.TotalPrice,
-                        Costo = producto?.PrecioBase ?? 0,
-                        Margen = d.TotalPrice - (producto?.PrecioBase ?? 0) * d.Quantity,
+                        Costo = costo,
+                        Margen = d.TotalPrice - costo * cantidad,
                         NumeroTransaccion = order.OrderID
                     });
                 }
             }
-
             return fact;
         }
+
 
         #endregion
     }
