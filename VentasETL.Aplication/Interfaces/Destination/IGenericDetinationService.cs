@@ -10,7 +10,7 @@ namespace VentasETL.Aplication.Interfaces.Destination
     {
 
         Task AddAsync(Tentity entity);
-        Task AddRangeAsync(IEnumerable<Tentity> entity);
+        Task<List<Tentity>> AddRangeReturnAsync(IEnumerable<Tentity> entity);
       
 
     }

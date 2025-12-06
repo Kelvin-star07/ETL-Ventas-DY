@@ -68,7 +68,7 @@ namespace VentasETL.Aplication.Services
 
         public async Task RunETLAsync()
         {
-
+            // 1. EXTRACT
             var clientesCsv = (await _custumerCsvService.GetAllAsync()).ToList();
             var clientesApi = (await _custumerApiService.GetAllAsync()).ToList();
             var orders = (await _orderCsvService.GetAllAsync()).ToList();
@@ -78,60 +78,81 @@ namespace VentasETL.Aplication.Services
             var descriptions = (await _productDescriptionService.ReadData()).ToList();
             var fechas = (await _historicalDataService.ReadData()).ToList();
 
+           
             var dimClientes = MapClientes(clientesCsv, clientesApi);
             var dimProductos = MapProductos(productosCsv, productosApi, descriptions);
             var dimTiempos = MapDimTiempo(fechas, orders);
             var dimRegiones = MapDimRegion(dimClientes, clientesApi);
-            var factVentas = MapFactVentas(orders, orderDetails, dimClientes, dimProductos, dimTiempos, dimRegiones);
 
+            dimClientes = await _dimClienteRepo.AddRangeReturnAsync(dimClientes);
+            dimProductos = await _dimProductRepo.AddRangeReturnAsync(dimProductos);
+            dimTiempos = await _dimTiempoRepo.AddRangeReturnAsync(dimTiempos);
+            dimRegiones = await _dimRegionRepo.AddRangeReturnAsync(dimRegiones);
 
-            await _dimClienteRepo.AddRangeAsync(dimClientes);
-            await _dimProductRepo.AddRangeAsync(dimProductos);
-            await _dimTiempoRepo.AddRangeAsync(dimTiempos);
-            await _dimRegionRepo.AddRangeAsync(dimRegiones);
-            await _factVentasRepo.AddRangeAsync(factVentas);
+         
+            var factVentas = MapFactVentas(
+                orders,
+                orderDetails,
+                dimClientes,
+                dimProductos,
+                dimTiempos,
+                dimRegiones
+            );
+
+          
+            await _factVentasRepo.AddRangeReturnAsync(factVentas);
         }
+
 
         #region 🔄 Map Methods (Transform)
 
-        private List<DimCliente> MapClientes(List<CustumerDto> csv, List<DataCustumerUpdatedDto> api)
+        private List<DimCliente> MapClientes(List<CustumerDto> csv,List<DataCustumerUpdatedDto> api)
         {
             var dict = new Dictionary<string, DimCliente>(StringComparer.OrdinalIgnoreCase);
 
+          
             foreach (var c in csv)
             {
-                var key = c.CustomerID.ToString();
-                if (!dict.ContainsKey(key))
+                var key = $"csv:{c.CustomerID}";
+
+                dict[key] = new DimCliente
                 {
-                    dict[key] = new DimCliente
-                    {
-                        CodigoCliente = key,
-                        Nombre = $"{c.FirstName} {c.LastName}".Trim(),
-                        Pais = c.Country ?? "N/A",
-                        Ciudad = c.City ?? "N/A",
-                        TipoCliente = "CSV",
-                        FechaRegistro = DateTime.Now
-                    };
-                }
+                    CodigoCliente = key,
+                    Nombre = $"{c.FirstName} {c.LastName}".Trim(),
+                    Pais = c.Country ?? "N/A",
+                    Region = "N/A",
+                    Ciudad = c.City ?? "N/A",
+                    TipoCliente = "CSV",
+                    Segmento = "N/A",
+                    FechaRegistro = DateTime.Now
+                };
             }
 
+         
             foreach (var a in api)
             {
-                string apiKey = !string.IsNullOrWhiteSpace(a.EmailAddress) ? a.EmailAddress.ToLowerInvariant()
-                              : !string.IsNullOrWhiteSpace(a.PhoneNumber) ? $"phone:{a.PhoneNumber}"
-                              : $"{a.FirstName}_{a.LastName}_{a.City}".ToLowerInvariant();
+               
+                var apiKey =
+                      !string.IsNullOrWhiteSpace(a.EmailAddress) ? $"email:{a.EmailAddress.ToLower()}"
+                    : !string.IsNullOrWhiteSpace(a.PhoneNumber) ? $"phone:{a.PhoneNumber}"
+                    : $"api:{a.FirstName}_{a.LastName}_{a.City}".ToLower();
 
-
+              
                 var matchCsv = csv.FirstOrDefault(c =>
-                    (!string.IsNullOrWhiteSpace(c.Email) && c.Email.Equals(a.EmailAddress, StringComparison.OrdinalIgnoreCase)) ||
-                    (!string.IsNullOrWhiteSpace(c.Phone) && c.Phone == a.PhoneNumber));
+                    (!string.IsNullOrWhiteSpace(c.Email) &&
+                        c.Email.Equals(a.EmailAddress, StringComparison.OrdinalIgnoreCase))
+                    ||
+                    (!string.IsNullOrWhiteSpace(c.Phone) &&
+                        c.Phone == a.PhoneNumber));
+
                 if (matchCsv != null)
                 {
-                    var key = matchCsv.CustomerID.ToString();
-                    var existing = dict[key];
-                    existing.Region = string.IsNullOrWhiteSpace(existing.Region) ? a.StateProvinceName : existing.Region;
-                    existing.Segmento = string.IsNullOrWhiteSpace(existing.Segmento) ? a.AddressType : existing.Segmento;
-                    existing.Pais = string.IsNullOrWhiteSpace(existing.Pais) ? a.CountryRegionName : existing.Pais;
+                    var key = $"csv:{matchCsv.CustomerID}";
+                    var cli = dict[key];
+
+                    cli.Region = string.IsNullOrWhiteSpace(cli.Region) ? a.StateProvinceName : cli.Region;
+                    cli.Pais = string.IsNullOrWhiteSpace(cli.Pais) ? a.CountryRegionName : cli.Pais;
+                    cli.Segmento = string.IsNullOrWhiteSpace(cli.Segmento) ? a.AddressType : cli.Segmento;
                 }
                 else if (!dict.ContainsKey(apiKey))
                 {
@@ -142,8 +163,8 @@ namespace VentasETL.Aplication.Services
                         Pais = a.CountryRegionName ?? "N/A",
                         Region = a.StateProvinceName ?? "N/A",
                         Ciudad = a.City ?? "N/A",
-                        TipoCliente = "API",
                         Segmento = a.AddressType ?? "N/A",
+                        TipoCliente = "API",
                         FechaRegistro = DateTime.Now
                     };
                 }
@@ -156,37 +177,41 @@ namespace VentasETL.Aplication.Services
 
 
 
-        private List<DimProduct> MapProductos(List<ProductDto> csv, List<DataProductUpdatedDto> api, List<ProductDescriptionDto> descriptions)
+        private List<DimProduct> MapProductos(List<ProductDto> csv,List<DataProductUpdatedDto> api,List<ProductDescriptionDto> descriptions)
         {
             var dict = new Dictionary<string, DimProduct>(StringComparer.OrdinalIgnoreCase);
 
+            string defaultDescription =
+                descriptions.FirstOrDefault()?.Description ?? "N/A";
 
             foreach (var a in api)
             {
-                var key = a.ProductId.ToString();
-                var desc = descriptions.FirstOrDefault(d => false)?.Description
-                           ?? descriptions.FirstOrDefault()?.Description ?? "N/A";
+                var key = $"api:{a.ProductId}";
+
                 dict[key] = new DimProduct
                 {
                     CodigoProducto = key,
                     Nombre = a.Name ?? "N/A",
                     Categoria = "N/A",
-                    Descripcion = desc,
+                    Descripcion = defaultDescription,
                     PrecioUnitario = a.ListPrice,
                     PrecioBase = a.StandardCost,
                     Estado = "Activo"
                 };
             }
 
-
+            
             foreach (var p in csv)
             {
-                var key = p.ProductID > 0 ? p.ProductID.ToString() : p.ProductName;
-                if (dict.TryGetValue(key, out var existing))
+                var key = p.ProductID > 0
+                    ? $"api:{p.ProductID}"
+                    : $"csv:{p.ProductName.ToLower()}";
+
+                if (dict.TryGetValue(key, out var exist))
                 {
-                    existing.Categoria = string.IsNullOrWhiteSpace(existing.Categoria) || existing.Categoria == "N/A" ? p.Category : existing.Categoria;
-                    existing.PrecioUnitario = existing.PrecioUnitario == 0 ? p.Price : existing.PrecioUnitario;
-                    existing.PrecioBase = existing.PrecioBase == 0 ? p.Price : existing.PrecioBase;
+                    exist.Categoria = exist.Categoria == "N/A" ? p.Category : exist.Categoria;
+                    exist.PrecioUnitario = exist.PrecioUnitario == 0 ? p.Price : exist.PrecioUnitario;
+                    exist.PrecioBase = exist.PrecioBase == 0 ? p.Price : exist.PrecioBase;
                 }
                 else
                 {
@@ -195,7 +220,7 @@ namespace VentasETL.Aplication.Services
                         CodigoProducto = key,
                         Nombre = p.ProductName,
                         Categoria = p.Category,
-                        Descripcion = descriptions.FirstOrDefault()?.Description ?? "N/A",
+                        Descripcion = defaultDescription,
                         PrecioUnitario = p.Price,
                         PrecioBase = p.Price,
                         Estado = "Activo"
@@ -205,6 +230,10 @@ namespace VentasETL.Aplication.Services
 
             return dict.Values.ToList();
         }
+
+
+
+
 
         private List<DimTiempo> MapDimTiempo(List<HistoricalDataDto> historial, List<OrderDto> orders)
         {
@@ -227,20 +256,34 @@ namespace VentasETL.Aplication.Services
 
 
 
-
-        private List<DimRegion> MapDimRegion(List<DimCliente> clientesStaging, List<DataCustumerUpdatedDto> api)
+        private List<DimRegion> MapDimRegion(List<DimCliente> clientes,List<DataCustumerUpdatedDto> api)
         {
             var dict = new Dictionary<string, DimRegion>(StringComparer.OrdinalIgnoreCase);
-            foreach (var c in clientesStaging)
+
+            foreach (var c in clientes)
             {
-                var key = $"{(c.Pais ?? "N/A").ToLowerInvariant()}|{(c.Region ?? "N/A").ToLowerInvariant()}|{(c.Ciudad ?? "N/A").ToLowerInvariant()}";
+                string pais = c.Pais ?? "N/A";
+                string region = c.Region ?? "N/A";
+                string ciudad = c.Ciudad ?? "N/A";
+
+                var key = $"{pais}|{region}|{ciudad}".ToLower();
+
                 if (!dict.ContainsKey(key))
                 {
-                    var postal = api.FirstOrDefault(a => (a.City ?? "").Equals(c.Ciudad, StringComparison.OrdinalIgnoreCase))?.PostalCode ?? "N/A";
-                    var zona = api.FirstOrDefault(a => (a.City ?? "").Equals(c.Ciudad, StringComparison.OrdinalIgnoreCase))?.StateProvinceName ?? "N/A";
-                    dict[key] = new DimRegion { Pais = c.Pais!, Region = c.Region!, Ciudad = c.Ciudad!, CodigoPostal = postal, Zona = zona };
+                    var apiMatch = api.FirstOrDefault(a =>
+                        a.City.Equals(ciudad, StringComparison.OrdinalIgnoreCase));
+
+                    dict[key] = new DimRegion
+                    {
+                        Pais = pais,
+                        Region = region != "N/A" ? region : (apiMatch?.StateProvinceName ?? "N/A"),
+                        Ciudad = ciudad,
+                        CodigoPostal = apiMatch?.PostalCode ?? "N/A",
+                        Zona = apiMatch?.StateProvinceName ?? "N/A"
+                    };
                 }
             }
+
             return dict.Values.ToList();
         }
 
@@ -248,54 +291,58 @@ namespace VentasETL.Aplication.Services
 
 
 
-        private List<FactVentas> MapFactVentas(List<OrderDto> orders, List<OrderDetailDto> details, List<DimCliente> persistedClientes, List<DimProduct> persistedProductos, List<DimTiempo> persistedTiempos, List<DimRegion> persistedRegiones)
+        private List<FactVentas> MapFactVentas(List<OrderDto> orders,List<OrderDetailDto> details,List<DimCliente> clientes,List<DimProduct> productos,List<DimTiempo> tiempos,List<DimRegion> regiones)
         {
-            var clienteByBusiness = persistedClientes.ToDictionary(c => c.CodigoCliente, c => c);
-            var productoByBusiness = persistedProductos.ToDictionary(p => p.CodigoProducto, p => p);
-            var tiempoByDate = persistedTiempos.ToDictionary(t => t.FechaCompleta.Date, t => t);
-            var regionByComposite = persistedRegiones.ToDictionary(r => $"{r.Pais}|{r.Region}|{r.Ciudad}".ToLowerInvariant(), r => r);
+            var clienteLookup = clientes.ToDictionary(x => x.CodigoCliente, x => x);
+            var prodLookup = productos.ToDictionary(x => x.CodigoProducto, x => x);
+            var tiempoLookup = tiempos.ToDictionary(x => x.FechaCompleta.Date, x => x);
+            var regionLookup = regiones.ToDictionary(
+                x => $"{x.Pais}|{x.Region}|{x.Ciudad}".ToLower(), x => x);
 
             var fact = new List<FactVentas>();
-            foreach (var order in orders)
+
+            foreach (var o in orders)
             {
-                var t = tiempoByDate.GetValueOrDefault(order.OrderDate.Date);
-                string clienteKey = order.CustomerID.ToString();
-                clienteByBusiness.TryGetValue(clienteKey, out var cliente);
-                foreach (var d in details.Where(x => x.OrderID == order.OrderID))
+                if (!tiempoLookup.TryGetValue(o.OrderDate.Date, out var t))
+                    continue;
+
+                string ck = $"csv:{o.CustomerID}";
+                if (!clienteLookup.TryGetValue(ck, out var cli))
+                    continue;
+
+                string rKey = $"{cli.Pais}|{cli.Region}|{cli.Ciudad}".ToLower();
+                if (!regionLookup.TryGetValue(rKey, out var reg))
+                    continue;
+
+                foreach (var d in details.Where(x => x.OrderID == o.OrderID))
                 {
-                    var productKey = d.ProductID.ToString();
-                    productoByBusiness.TryGetValue(productKey, out var prod);
+                    string pKey = $"api:{d.ProductID}";
+                    if (!prodLookup.TryGetValue(pKey, out var prod))
+                        continue;
 
-
-                    DimRegion region = null;
-                    if (cliente != null)
-                    {
-                        var comp = $"{cliente.Pais}|{cliente.Region}|{cliente.Ciudad}".ToLowerInvariant();
-                        regionByComposite.TryGetValue(comp, out region);
-                    }
-
-                    var costo = prod?.PrecioBase ?? 0m;
-                    var cantidad = Math.Max(0, d.Quantity);
-                    var precioUnit = cantidad > 0 ? d.TotalPrice / cantidad : d.TotalPrice;
+                    int cantidad = Math.Max(0, d.Quantity);
+                    decimal precioUnit = cantidad > 0 ? d.TotalPrice / cantidad : d.TotalPrice;
 
                     fact.Add(new FactVentas
                     {
-                        TiempoId = t?.TiempoKey ?? 0,
-                        ProductoId = prod?.ProductKey ?? 0,
-                        ClienteId = cliente?.ClienteKey ?? 0,
-                        RegionId = region?.RegionKey ?? 0,
+                        TiempoId = t.TiempoKey,
+                        ProductoId = prod.ProductKey,
+                        ClienteId = cli.ClienteKey,
+                        RegionId = reg.RegionKey,
                         Cantidad = cantidad,
                         PrecioUnitario = precioUnit,
-                        Descuento = 0m,
+                        Descuento = 0,
                         TotalVenta = d.TotalPrice,
-                        Costo = costo,
-                        Margen = d.TotalPrice - costo * cantidad,
-                        NumeroTransaccion = order.OrderID
+                        Costo = prod.PrecioBase,
+                        Margen = d.TotalPrice - prod.PrecioBase * cantidad,
+                        NumeroTransaccion = o.OrderID
                     });
                 }
             }
+
             return fact;
         }
+
 
 
         #endregion

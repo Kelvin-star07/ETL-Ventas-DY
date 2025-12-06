@@ -46,7 +46,7 @@ namespace VentasETL.Aplication.Services.Destination
 
         }
 
-        public async Task AddRangeAsync(IEnumerable<T> entities)
+        public async Task<List<T>> AddRangeReturnAsync(IEnumerable<T> entities)
         {
 
             try
@@ -60,7 +60,7 @@ namespace VentasETL.Aplication.Services.Destination
                 }
 
 
-                await repo.AddRangeReturnAsync(entities); 
+                  return await repo.AddRangeReturnAsync(entities); 
 
 
             } catch (Exception ex) 
